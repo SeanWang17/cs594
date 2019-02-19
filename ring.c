@@ -13,20 +13,19 @@ int main(int argc, char **argv){
 	int token = 0;
 
 	if( rank == 0 ){
+                printf("rank %d holds token %d\n", rank, token);
 		token++;
 		MPI_Send( &token, 1, MPI_INT, rank+1, tag, MPI_COMM_WORLD );
-
-//		printf("rank: %d token: %d\n", rank, token);
-	} else if( rank == size - 1 ){
+	}
+	else if( rank != size-1 ){
 		MPI_Recv(&token, 1, MPI_INT, rank-1, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		printf("rank %d holds token %d\n", rank, token);
 		token++;
-//		printf("rank: %d token: %d\n", rank, token);
-		printf("final token: %d\n", token);
-	} else {
-		MPI_Recv(&token, 1, MPI_INT, rank-1, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		token++;
-//		printf("rank: %d token: %d\n", rank, token);
 		MPI_Send( &token, 1, MPI_INT, rank+1, tag, MPI_COMM_WORLD );
+	}
+	else {
+		MPI_Recv(&token, 1, MPI_INT, rank-1, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		printf("rank %d holds token %d\n", rank, token);
 	}
 
 	MPI_Finalize();
