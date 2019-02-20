@@ -3,10 +3,10 @@
 #include<mpi.h>
 
 int main(int argc, char **argv){
-	int rank, size;
+	int rank, size, rowRank, colRank;
 
 	if(argc < 3){
-		printf("Need two inputs P & Q\n");
+		printf("Please input a P*Q matrix.\n");
 		exit(0);
 	}
 
@@ -24,17 +24,21 @@ int main(int argc, char **argv){
 			exit(0);
 		}
 
-		printf("number of processes is not enough for your grid!\n");
+		printf("The size %d is less than than P*Q (%d*%d)\n", size, p, q);
 		MPI_Finalize();
 		exit(0);
 	}
 
-        MPI_Comm ns[q], ew[p];
-        MPI_Comm_split(MPI_COMM_WORLD, rank/p, rank/p, &ew[rank/p]);
-        MPI_Comm_split(MPI_COMM_WORLD, rank%q, rank%q, &ns[rank%q]);
-
+        MPI_Comm rowCOMM[p], colCOMM[q];
+        MPI_Comm_split(MPI_COMM_WORLD, rank/q, rank/q, &rowCOMM[rank/q]);
+        MPI_Comm_split(MPI_COMM_WORLD, rank%q, rank%q, &colCOMM[rank%q]);
 	
+	MPI_Comm_rank(rowCOMM[rank/q], &rowRank);
+	MPI_Comm_rank(colCOMM[rank%q], &colRank);
 
+	printf ("rank %d in MPI_COMM_WORLD while rank %d in rowCOMM %d.\n", rank, rowRank, rank/q);	
+	printf ("rank %d in MPI_COMM_WORLD while rank %d in colCOMM %d.\n", rank, colRank, rank%q);	
+	
 	MPI_Finalize();
 	exit(0);
 }

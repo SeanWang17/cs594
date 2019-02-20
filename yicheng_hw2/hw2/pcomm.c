@@ -11,7 +11,7 @@ int main(int argc, char **argv){
 	int p = atoi(argv[1]), q = atoi(argv[2]);
 	if( size < p * q ){
 		if( rank == 0)
-			printf("# of processes < P x Q\n");
+			printf("The size %d is less than than P*Q (%d*%d)\n", size, p, q);
 		MPI_Finalize();
 		exit(0);
 	}
@@ -27,7 +27,7 @@ int main(int argc, char **argv){
 		}
 	}
 
-	int ns_comm = rank % p, ew_comm = rank / p;
+	int ns_comm = rank % q, ew_comm = rank / q;
 
 	MPI_Comm ns[p], ew[q];
 	MPI_Comm_split(MPI_COMM_WORLD, rank%p, rank, &ns[ns_comm]);
