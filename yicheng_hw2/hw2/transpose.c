@@ -38,113 +38,71 @@ float* transpose( float* matrix, int n, int p, int q, MPI_Datatype ddt ){
 }
 
 int main(int argc, char **argv){
-	int rank, size;
+	int rank, size, tag=0;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
 	int n = atoi(argv[1]), p = atoi(argv[2]), q = atoi(argv[3]);
-
-	float *matrix = (float*)malloc(sizeof(float) * n * n );
-
-	//for test case create a matrix
-	int initc, i, j;
-	for(initc = 0; initc < n*n; initc++)
-		matrix[initc] = (float)initc;
-
-	//print initial matrix
-	if(rank == 0){
-		printf("initial matrix\n");
-		for(initc = 0; initc < n*n; ){
-			for(i = 0; i < n; i++){
-				printf("%*.f ", 5, matrix[initc]);
-				initc++;
-			}
-			printf("\n");
+//	lol
+	int matrix[n][n];
+	int i, j;
+	for(i=0; i<n; i++){
+		for(j=0; j<n; j++){
+			if (i-j<=1 && i-j>=-1)
+				matrix[i][j] = i+1;
+			else
+				matrix[i][j] = 0;
 		}
-		printf("-----------------------\n");
 	}
-
-	MPI_Barrier(MPI_COMM_WORLD);
-
-
-	//transpose starts here
-	int row = rank / (n / p) , col = rank % (n / p);
-	int srank = col * (n / p) + row;
-
-	int sp = col * p + row * q * n;
-	//	printf("rank %d sp %d\n", rank, sp);
-	float* tp = (float*)malloc(sizeof(float) * p * q);
-	float* recv = (float*)malloc(sizeof(float) * p * q);
-	int tag = 0, count = 1, position = 0;
-	float* rbuf;
-
-	MPI_Datatype ddt;
-	MPI_Type_vector(q, p, n, MPI_FLOAT, &ddt);
-	MPI_Type_commit(&ddt);
-
-	//all rank do transpose locally
-	tp = transpose( &matrix[ sp ], n, p, q, ddt );
-
-	//upper triangle send first
-	if( row > col ){
-		//		MPI_Send( tp, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD );
-		//		MPI_Recv( recv, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
-		MPI_Send( tp, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD );
-		MPI_Recv( recv, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
-
-		MPI_Unpack( recv, sizeof(float)*p*q, &position, &matrix[sp], count, ddt, MPI_COMM_SELF );
-	}
-
-	//lower triangle recv first
-	if( col > row ){
-		//		MPI_Recv( recv, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
-		//		MPI_Send( tp, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD );
-		MPI_Recv( recv, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
-		MPI_Unpack( recv, sizeof(float)*p*q, &position, &matrix[sp], count, ddt, MPI_COMM_SELF );
-		MPI_Send( tp, p*q, MPI_FLOAT, srank, tag, MPI_COMM_WORLD );
-	}
-
-	//diagonal
-	if( row == col ){
-		memcpy( recv, tp, sizeof(float) * p * q );
-		MPI_Unpack( recv, sizeof(float)*p*q, &position, &matrix[sp], count, ddt, MPI_COMM_SELF );
-	}
-
-	MPI_Barrier(MPI_COMM_WORLD);
-	if(rank == 0)
-		rbuf = (float*)malloc(sizeof(float) * n * n);
-
-	//	for( j = 0; j < p; j++ ){
-	//		printf("rank %d copying ", rank);
-	//		for(i = 0; i < p; i++)
-	//			printf("%.f ", recv[j*p+i]);
-	//		printf("in rbuf[%d]\n", sp+j*n);
-	//	}
-
-	for(j = 0; j < size; j++){
-		MPI_Barrier(MPI_COMM_WORLD);
-		if(rank == j){
-			printf("after transpose matrix rank %d has block\n", rank);
-			for(initc = 0; initc < p*q; ){
-				for(i = 0; i < p; i++){
-					printf("%*.f ", 5, recv[initc]);
-					initc++;
-				}
-				printf("\n");
+	if(rank==0){
+		for(i=0; i<n; i++){
+			for(j=0; j<n; j++){
+				if(j==n-1)
+					printf("%d\n", matrix[i][j]);
+				else
+					printf("%d ",matrix[i][j]);
 			}
-			printf("-----------------------\n");
 		}
-		MPI_Barrier(MPI_COMM_WORLD);
 	}
+	int row, col,send[n/q][n/p],recv[n/q][n/p];
+	row = rank/q;
+	col = rank%q;
+	for(i=0; i<n/p; i++){
+		for(j=0; j<n/q; j++){
+			send[j][i] = recv[j][i] = matrix[row*n/p+i][col*n/q+j];
+		}
+	}
+	
+	if(row < col)
+		MPI_Send(&send, n/q*n/p, MPI_INT, col*q+row, tag, MPI_COMM_WORLD);
+	MPI_Barrier(MPI_COMM_WORLD);
+	if(row > col){
+		MPI_Recv(&recv, n/p*n/q, MPI_INT, col*q+row, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		MPI_Send(&send, n/q*n/p, MPI_INT, col*q+row, tag, MPI_COMM_WORLD);
+	}
+	MPI_Barrier(MPI_COMM_WORLD);
+	if(row < col)
+		MPI_Recv(&recv, n/p*n/q, MPI_INT, col*q+row, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Barrier(MPI_COMM_WORLD);
+//	for(j=0; j<p; j++){
+//		MPI_Barrier(MPI_COMM_WORLD);
+//		if(row==j){
+//			for(i=0; i<n/q; i++){
+//				if(col==q-1 && i==n/q-1)
+//					printf("%d\n", sub[0][i]);
+//				else
+//					printf("%d ", sub[0][i]);	
+//			}
+//		}
+//	}
+	for(i=0; i<n/q;i++){
+		for (j=0; j<n/p; j++)
+			printf("%d ",recv[i][j]);
+	}
+	printf("rank %d\n",rank);	
 
-
-
-	MPI_Type_free(&ddt);
-	free(recv);
-	free(tp);
-	free(matrix);
 	MPI_Finalize();
 	exit(0);
 
 }
+

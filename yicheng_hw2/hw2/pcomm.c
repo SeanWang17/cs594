@@ -3,7 +3,7 @@
 #include<stdlib.h>
 
 int main(int argc, char **argv){
-	int rank, size;
+	int rank, size, rowRank, colRank, count=1, tag=0;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -27,70 +27,57 @@ int main(int argc, char **argv){
 		}
 	}
 
-	int ns_comm = rank % q, ew_comm = rank / q;
 
-	MPI_Comm ns[p], ew[q];
-	MPI_Comm_split(MPI_COMM_WORLD, rank%p, rank, &ns[ns_comm]);
-	MPI_Comm_split(MPI_COMM_WORLD, rank/p, rank, &ew[ew_comm]);
-
-	int nsFinal[p], ewFinal[q];
-	int nsToken[p], ewToken[q];
-	int i;
-	for( i = 0; i < p; i++ ){
-		nsToken[i] = 0;
-		nsFinal[i] = 0;
-	}
-	for( i = 0; i < q; i++ ){
-		ewToken[i] = 0;
-		ewFinal[i] = 0;
-	}
-
-	int ns_rank, ew_rank, ns_size, ew_size;
-	ns_rank = rank / p;
-	ew_rank = rank % p;
-	MPI_Comm_size(ns[ns_comm], &ns_size);
-	MPI_Comm_size(ew[ew_comm], &ew_size);
-
-	int next_ns = ns_rank+1, prev_ns = ns_rank - 1;
-	int next_ew = ew_rank+1, prev_ew = ew_rank - 1;
-	int count = 1, tag = 0;
-
-	if( ns_rank == 0 ){
-		nsToken[ns_comm]++;
-		MPI_Send( &nsToken[ns_comm], count, MPI_INT, next_ns, tag, ns[ns_comm] );
-//		printf("NorthSouth rank %d send %d to next ns %d\n",
-//			rank, nsToken[ns_comm], next_ns);
-	} else if( ns_rank == q - 1 ){
-		MPI_Recv( &nsToken[ns_comm],count,MPI_INT,prev_ns,tag,ns[ns_comm],MPI_STATUS_IGNORE );
-		printf("rank %d receives %d from NorthSouth\n", 
-			rank, nsToken[ns_comm]);
+	MPI_Comm rowCOMM[p], colCOMM[q];
+	MPI_Comm_split(MPI_COMM_WORLD, rank/q, rank/q, &rowCOMM[rank/q]);
+	MPI_Comm_split(MPI_COMM_WORLD, rank%q, rank%q, &colCOMM[rank%q]);
+	MPI_Comm_rank(rowCOMM[rank/q], &rowRank);
+	MPI_Comm_rank(colCOMM[rank%q], &colRank);
+	
+	int rowToken[p], colToken[q];
+	
+	if( rowRank == 0 ){
+		rowToken[rank/q] = 0;
+		MPI_Send( &rowToken[rank/q], count, MPI_INT, rowRank+1, tag, rowCOMM[rank/q] );
+		printf("rowCOMM %d rank %d sends %d.\n",
+			rank/q, rowRank, rowToken[rank/q]);
+	} else if( rowRank == p-1 ){
+		MPI_Recv( &rowToken[rank/q], count, MPI_INT, rowRank-1, tag, rowCOMM[rank/q], MPI_STATUS_IGNORE );
+		printf("rowCOMM %d rank %d receives %d.\n", 
+			rank/q, rowRank, rowToken[rank/q]);
+		rowToken[rank/q]++;
+		printf("rowCOMM %d's final token is %d.\n",
+			rank/q, rowToken[rank/q]);
 	} else {
-		MPI_Recv( &nsToken[ns_comm],count,MPI_INT,prev_ns,tag,ns[ns_comm],MPI_STATUS_IGNORE );
-//		printf("rank %d receives %d from NorthSouth\n", 
-//			rank, nsToken[ns_comm]);
-		nsToken[ns_comm]++;
-		MPI_Send( &nsToken[ns_comm], count, MPI_INT, next_ns, tag, ns[ns_comm] );
-//		printf("NorthSouth rank %d send %d to next ns %d\n",
-//			rank, nsToken[ns_comm], next_ns);
+		MPI_Recv( &rowToken[rank/q], count, MPI_INT, rowRank-1, tag, rowCOMM[rank/q], MPI_STATUS_IGNORE );
+		printf("rowCOMM %d rank %d receives %d.\n", 
+			rank/q, rowRank, rowToken[rank/q]);
+		rowToken[rank/q]++;
+		MPI_Send( &rowToken[rank/q], count, MPI_INT, rowRank+1, tag, rowCOMM[rank/q] );
+		printf("rowCOMM %d rank %d sends %d.\n",
+			rank/q, rowRank, rowToken[rank/q]);
 	}
 
-	if( ew_rank == 0 ){
-		ewToken[ew_comm]++;
-		MPI_Send( &ewToken[ew_comm], count, MPI_INT, next_ew, tag, ew[ew_comm] );
-//		printf("EastWest rank %d send %d to next ew %d\n",
-//			rank, ewToken[ew_comm], next_ew);
-	} else if( ew_rank == p - 1 ){
-		MPI_Recv( &ewToken[ew_comm],count,MPI_INT,prev_ew,tag,ew[ew_comm],MPI_STATUS_IGNORE );
-		printf("rank %d receives %d from EastWest\n", 
-			rank, ewToken[ew_comm]);
+	if( colRank == 0 ){
+		colToken[rank%q] = 0;
+		MPI_Send( &colToken[rank%q], count, MPI_INT, colRank+1, tag, colCOMM[rank%q] );
+		printf("colCOMM %d rank %d sends %d.\n",
+			rank%q, colRank, colToken[rank%q]);
+	} else if( colRank == q-1 ){
+		MPI_Recv( &colToken[rank%q], count, MPI_INT, colRank-1, tag, colCOMM[rank%q], MPI_STATUS_IGNORE );
+		printf("colCOMM %d rank %d receives %d.\n", 
+			rank%q, colRank, colToken[rank%q]);
+		colToken[rank%q]++;
+		printf("colCOMM %d's final token is %d.\n",
+			rank%q, colToken[rank%q]);
 	} else {
-		MPI_Recv( &ewToken[ew_comm],count,MPI_INT,prev_ew,tag,ew[ew_comm],MPI_STATUS_IGNORE );
-//		printf("rank %d receives %d from EastWest\n", 
-//			rank, ewToken[ew_comm]);
-		ewToken[ew_comm]++;
-		MPI_Send( &ewToken[ew_comm], count, MPI_INT, next_ew, tag, ew[ew_comm] );
-//		printf("EastWest rank %d send %d to next ew %d\n",
-//			rank, ewToken[ew_comm], next_ew);
+		MPI_Recv( &colToken[rank%q], count, MPI_INT, colRank-1, tag, colCOMM[rank%q], MPI_STATUS_IGNORE );
+		printf("colCOMM %d rank %d receives %d.\n", 
+			rank%q, colRank, colToken[rank%q]);
+		colToken[rank%q]++;
+		MPI_Send( &colToken[rank%q], count, MPI_INT, colRank+1, tag, colCOMM[rank%q] );
+		printf("colCOMM %d rank %d sends %d.\n",
+			rank%q, colRank, colToken[rank%q]);
 	}
 
 
