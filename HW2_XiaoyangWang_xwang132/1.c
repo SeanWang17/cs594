@@ -25,6 +25,8 @@ int main(int argc, char **argv){
 	else {
 		MPI_Recv(&token, 1, MPI_INT, rank-1, tag, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		printf("rank %d receives token %d\n", rank, token);
+		token++;
+		printf("Final token is %d\n", token);
 	}
 
 	MPI_Finalize();
